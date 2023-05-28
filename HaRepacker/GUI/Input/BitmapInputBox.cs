@@ -8,7 +8,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Media.Imaging;
 
@@ -71,7 +74,7 @@ namespace HaRepacker.GUI.Input
             }
             else
             {
-                MessageBox.Show(Properties.Resources.EnterValidInput, Properties.Resources.Warning, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                System.Windows.Forms.MessageBox.Show(Properties.Resources.EnterValidInput, Properties.Resources.Warning, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -138,12 +141,12 @@ namespace HaRepacker.GUI.Input
                 Debug.WriteLine(exp.ToString());
             }
         }
-        /// <summary>
-        /// Converts a BitmapSource object to Bitmap
-        /// </summary>
-        /// <param name="bitmapsource"></param>
-        /// <returns></returns>
-        private static Bitmap BitmapFromSource(BitmapSource bitmapsource)
+		/// <summary>
+		/// Converts a BitmapSource object to Bitmap
+		/// </summary>
+		/// <param name="bitmapsource"></param>
+		/// <returns></returns>
+		/*private static Bitmap BitmapFromSource(BitmapSource bitmapsource)
         {
             using (var outStream = new MemoryStream())
             {
@@ -152,14 +155,27 @@ namespace HaRepacker.GUI.Input
                 enc.Save(outStream);
                 return new Bitmap(outStream);
             }
-        }
+        }*/
 
-        /// <summary>
-        /// Is the file path specified a GIF
-        /// </summary>
-        /// <param name="filePath"></param>
-        /// <returns></returns>
-        private static bool IsPathGIF(string filePath)
+		private static Bitmap BitmapFromSource(BitmapSource bitmapsource)
+		{
+			using (var outStream = new MemoryStream())
+			{
+				BitmapEncoder enc = new PngBitmapEncoder();
+				enc.Frames.Add(BitmapFrame.Create(bitmapsource));
+				enc.Save(outStream);
+				outStream.Seek(0, SeekOrigin.Begin);
+
+				return new Bitmap(outStream);
+			}
+		}
+
+		/// <summary>
+		/// Is the file path specified a GIF
+		/// </summary>
+		/// <param name="filePath"></param>
+		/// <returns></returns>
+		private static bool IsPathGIF(string filePath)
         {
             return filePath.ToLower().EndsWith("gif");
         }

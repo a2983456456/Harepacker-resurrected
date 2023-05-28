@@ -61,14 +61,16 @@ namespace MapleLib.WzLib.WzProperties
             else compressedImageBytes = (byte[])value;
         }
 
-        public override WzImageProperty DeepClone()
-        {
-            WzPngProperty clone = new WzPngProperty();
-            clone.SetImage(GetImage(false));
-            return clone;
-        }
+		public override WzImageProperty DeepClone()
+		{
+			WzPngProperty clone = new WzPngProperty();
+			Bitmap originalImage = GetImage(false);
+			Bitmap clonedImage = new Bitmap(originalImage); // 創建Bitmap的新實例
+			clone.SetImage(clonedImage);
+			return clone;
+		}
 
-        public override object WzValue { get { return GetImage(false); } }
+		public override object WzValue { get { return GetImage(false); } }
         /// <summary>
         /// The parent of the object
         /// </summary>

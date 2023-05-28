@@ -33,6 +33,8 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.IO;
 using System.Net;
+using Color = System.Drawing.Color;
+using Image = System.Drawing.Image;
 
 namespace HaRepacker.GUI.Panels
 {
@@ -328,18 +330,49 @@ namespace HaRepacker.GUI.Panels
                 canvas.PngProperty = pngProperty;
 
                 WzNode newInsertedNode = wzNode.AddObject(canvas, UndoRedoMan);
-                // Add an additional WzVectorProperty with X Y of 0,0
-                newInsertedNode.AddObject(new WzVectorProperty(WzCanvasProperty.OriginPropertyName, new WzIntProperty("X", 0), new WzIntProperty("Y", 0)), UndoRedoMan);
+				// Add an additional WzVectorProperty with X Y of 0,0
+				newInsertedNode.AddObject(new WzVectorProperty(WzCanvasProperty.OriginPropertyName, new WzIntProperty("X", 200), new WzIntProperty("Y", 250)), UndoRedoMan);
+				newInsertedNode.AddObject(new WzIntProperty("delay", 20), UndoRedoMan);
 
-                i++;
+				i++;
             }
         }
 
-        /// <summary>
-        /// WzCompressedInt
-        /// </summary>
-        /// <param name="target"></param>
-        public void AddWzCompressedIntToSelectedNode(System.Windows.Forms.TreeNode target)
+		public void AddMultiWzCanvasToSelectedNode(System.Windows.Forms.TreeNode target)
+		{
+			string name;
+			List<System.Drawing.Bitmap> bitmaps = new List<System.Drawing.Bitmap>();
+			if (!(target.Tag is IPropertyContainer))
+			{
+				Warning.Error(Properties.Resources.MainCannotInsertToNode);
+				return;
+			}
+			else if (!BitmapInputBox.Show(Properties.Resources.MainAddCanvas, out name, out bitmaps))
+				return;
+
+			WzNode wzNode = ((WzNode)target);
+
+			int i = 0;
+			foreach (System.Drawing.Bitmap bmp in bitmaps)
+			{
+				WzCanvasProperty canvas = new WzCanvasProperty(bitmaps.Count == 1 ? name : (name + i));
+				WzPngProperty pngProperty = new WzPngProperty();
+				pngProperty.SetImage(bmp);
+				canvas.PngProperty = pngProperty;
+
+				WzNode newInsertedNode = wzNode.AddObject(canvas, UndoRedoMan);
+				// Add an additional WzVectorProperty with X Y of 0,0
+				newInsertedNode.AddObject(new WzVectorProperty(WzCanvasProperty.OriginPropertyName, new WzIntProperty("X", 0), new WzIntProperty("Y", 0)), UndoRedoMan);
+
+				i++;
+			}
+		}
+
+		/// <summary>
+		/// WzCompressedInt
+		/// </summary>
+		/// <param name="target"></param>
+		public void AddWzCompressedIntToSelectedNode(System.Windows.Forms.TreeNode target)
         {
             string name;
             int? value;
@@ -988,26 +1021,68 @@ namespace HaRepacker.GUI.Panels
             }
         }
 
+		public static void ColorToHSV(Color color, out double hue, out double saturation, out double value)
+		{
+			int max = Math.Max(color.R, Math.Max(color.G, color.B));
+			int min = Math.Min(color.R, Math.Min(color.G, color.B));
 
-        private void FixLinkForOldMS(WzCanvasProperty selectedWzCanvas, WzNode parentCanvasNode)
+			hue = color.GetHue();
+			saturation = (max == 0) ? 0 : 1d - (1d * min / max);
+			value = max / 255d;
+		}
+
+		public static Color ColorFromHSV(double hue, double saturation, double value)
+		{
+			int hi = Convert.ToInt32(Math.Floor(hue / 60)) % 6;
+			double f = hue / 60 - Math.Floor(hue / 60);
+
+			value = value * 255;
+			int v = Convert.ToInt32(value);
+			int p = Convert.ToInt32(value * (1 - saturation));
+			int q = Convert.ToInt32(value * (1 - f * saturation));
+			int t = Convert.ToInt32(value * (1 - (1 - f) * saturation));
+
+			if (hi == 0)
+				
+                return Color.FromArgb(255, v, t, p);
+			else if (hi == 1)
+				return Color.FromArgb(255, q, v, p);
+			else if (hi == 2)
+				return Color.FromArgb(255, p, v, t);
+			else if (hi == 3)
+				return Color.FromArgb(255, p, q, v);
+			else if (hi == 4)
+				return Color.FromArgb(255, t, p, v);
+			else
+				return Color.FromArgb(255, v, p, q);
+		}
+
+		private void FixLinkForOldMS(WzCanvasProperty selectedWzCanvas, WzNode parentCanvasNode)
         {
-            WzImageProperty linkedTarget = selectedWzCanvas.GetLinkedWzImageProperty();
-            if (selectedWzCanvas.HaveInlinkProperty()) // if its an inlink property, remove that before updating base image.
-            {
-                selectedWzCanvas.RemoveProperty(selectedWzCanvas[WzCanvasProperty.InlinkPropertyName]);
-                WzNode childInlinkNode = WzNode.GetChildNode(parentCanvasNode, WzCanvasProperty.InlinkPropertyName);
-
-                childInlinkNode.DeleteWzNode(); // Delete '_inlink' node
-            }
-            if (selectedWzCanvas.HaveOutlinkProperty()) // if its an outlink property, remove that before updating base image.
-            {
-                selectedWzCanvas.RemoveProperty(selectedWzCanvas[WzCanvasProperty.OutlinkPropertyName]);
-                WzNode childOutlinkNode = WzNode.GetChildNode(parentCanvasNode, WzCanvasProperty.OutlinkPropertyName);
-
-                childOutlinkNode.DeleteWzNode(); // Delete '_outlink' node
-            }
-
-            selectedWzCanvas.PngProperty.SetImage(linkedTarget.GetBitmap());
+            Bitmap img = selectedWzCanvas.GetBitmap();
+            double child=0, parent=0;
+			//invert img colors
+			for (int x = 0; x < img.Width; x++)
+				for (int y = 0; y < img.Height; y++)
+				{
+					double h, s, v;
+					ColorToHSV(img.GetPixel(x, y), out h, out s, out v);
+					child += h * v;
+					parent += v;
+				}
+            child/= parent==0?1:parent;
+			for (int x = 0; x < img.Width; x++)
+				for (int y = 0; y < img.Height; y++)
+				{
+					//convert argb to hsv
+					double h, s, v;
+					ColorToHSV(img.GetPixel(x, y), out h, out s, out v);
+					Color new_color = ColorFromHSV(child + 10 * (x + y), s * 0.9, v);
+					Color gray_color = ColorFromHSV(0, 0, v);
+                    new_color = Color.FromArgb(new_color.A, (new_color.R*2 + gray_color.R) / 3, (new_color.G*2 + gray_color.G) / 3, (new_color.B*2 + gray_color.B) / 3);
+					img.SetPixel(x, y, System.Drawing.Color.FromArgb(img.GetPixel(x, y).A, new_color.R, new_color.G, new_color.B));
+				}
+			selectedWzCanvas.PngProperty.SetImage(img);
 
             // Updates
             selectedWzCanvas.ParentImage.Changed = true;
@@ -1038,37 +1113,85 @@ namespace HaRepacker.GUI.Panels
         }
 
 
-        /// <summary>
-        /// Fix the '_inlink' and '_outlink' image property for compatibility to old MapleStory ver.
-        /// </summary>
-        public void FixLinkForOldMS_Click()
-        {
-            // handle multiple nodes...
-            int nodeCount = DataTree.SelectedNodes.Count;
-            DateTime t0 = DateTime.Now;
-            foreach (WzNode node in DataTree.SelectedNodes)
-            {
-                CheckImageNodeRecursively(node);
-            }
+		/// <summary>
+		/// Fix the '_inlink' and '_outlink' image property for compatibility to old MapleStory ver.
+		/// </summary>
+		public void FixLinkForOldMS_Click()
+		{
+			// handle multiple nodes...
+			int nodeCount = DataTree.SelectedNodes.Count;
+			DateTime t0 = DateTime.Now;
+			foreach (WzNode node in DataTree.SelectedNodes)
+			{
+				CheckImageNodeRecursively(node);
+			}
 
-            // Check for updates to the changed canvas image that the user is currently selecting
-            if (DataTree.SelectedNode.Tag is WzCanvasProperty) // only allow button click if its an image property
-            {
-                System.Drawing.Image img = ((WzCanvasProperty) (DataTree.SelectedNode.Tag)).GetLinkedWzCanvasBitmap();
-                if (img != null)
-                    canvasPropBox.Image = ((System.Drawing.Bitmap)img).ToWpfBitmap();
-            }
+			// Check for updates to the changed canvas image that the user is currently selecting
+			if (DataTree.SelectedNode.Tag is WzCanvasProperty) // only allow button click if its an image property
+			{
+				System.Drawing.Image img = ((WzCanvasProperty)(DataTree.SelectedNode.Tag)).GetLinkedWzCanvasBitmap();
+				if (img != null)
+					canvasPropBox.Image = ((System.Drawing.Bitmap)img).ToWpfBitmap();
+			}
 
-            double ms = (DateTime.Now - t0).TotalMilliseconds;
-            MessageBox.Show("Done.\r\nElapsed time: " + ms + " ms (avg: " + (ms / nodeCount) + ")");
-        }
+			double ms = (DateTime.Now - t0).TotalMilliseconds;
+			MessageBox.Show("Done.\r\nElapsed time: " + ms + " ms (avg: " + (ms / nodeCount) + ")");
+		}
+		public void AddPng()
+		{
+			foreach (WzNode node in DataTree.SelectedNodes)
+			{
+                if (node.Text == "Ins.img")
+				{
+					string[] lines = File.ReadAllLines("D:\\Downloads\\a.txt",Encoding.UTF8);
+					foreach (string line in lines)
+					{
+						string[] parts = line.Split(' ');
+						string skillid =  parts[0];
+						string true_skillid = parts[1];
+						string skill_name = parts[2];
+						WzNode newInsertedNode = node.AddObject(new WzSubProperty(skillid), UndoRedoMan);
+						newInsertedNode.AddObject(new WzStringProperty("name", skill_name), UndoRedoMan);
+						newInsertedNode.AddObject(new WzStringProperty("desc", skill_name+"的技能書"), UndoRedoMan);
+					}
+				}
+                else
+                {
+                    string[] lines = File.ReadAllLines("D:\\Downloads\\a");
+                    foreach (string line in lines)
+                    {
+                        string[] parts = line.Split(' ');
+                        string skillid = "0" + parts[0];
+                        string true_skillid = parts[1];
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void MenuItem_changeSound_Click(object sender, RoutedEventArgs e)
+                        WzNode newInsertedNode = node.AddObject(new WzSubProperty(skillid), UndoRedoMan);
+                        newInsertedNode = newInsertedNode.AddObject(new WzSubProperty("info"), UndoRedoMan);
+
+                        WzCanvasProperty canvas = new WzCanvasProperty("icon");
+                        WzCanvasProperty canvasRaw = new WzCanvasProperty("iconRaw");
+                        WzPngProperty pngProperty = new WzPngProperty();
+                        pngProperty.SetImage((Bitmap)Image.FromFile("C:\\Users\\Terry\\Desktop\\icon\\skill." + true_skillid + ".icon.png"));
+                        canvas.PngProperty = pngProperty;
+                        canvasRaw.PngProperty = pngProperty;
+
+                        WzNode icon = newInsertedNode.AddObject(canvas, UndoRedoMan);
+                        icon.AddObject(new WzVectorProperty("origin", 0, 32), UndoRedoMan);
+                        WzNode iconRaw = newInsertedNode.AddObject(canvasRaw, UndoRedoMan);
+                        iconRaw.AddObject(new WzVectorProperty("origin", 0, 32), UndoRedoMan);
+                        newInsertedNode.AddObject(new WzIntProperty("slotMax", 30), UndoRedoMan);
+                    }
+                }
+
+			}
+			MessageBox.Show("Done.");
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="sender"></param>
+		/// <param name="e"></param>
+		private void MenuItem_changeSound_Click(object sender, RoutedEventArgs e)
         {
             if (DataTree.SelectedNode.Tag is WzBinaryProperty)
             {
@@ -1381,6 +1504,28 @@ namespace HaRepacker.GUI.Panels
                             continue;
 
                         WzNode node = new WzNode(clone, true);
+                        if (node.Text[0] == '0')
+                        {
+                            if (node.Text[4] - 48 < 5)
+                            {
+                                char[] tmpArray = node.Text.ToCharArray(); // Convert string to character array
+                                tmpArray[4] = Convert.ToChar(node.Text[4] + 5);
+                                node.ChangeName(new string(tmpArray));
+                            }
+                        }
+                        else
+						{
+							if (node.Text[3] - 48 < 5)
+							{
+								char[] tmpArray = node.Text.ToCharArray(); // Convert string to character array
+								tmpArray[3] = Convert.ToChar(node.Text[3] + 5);
+								node.ChangeName(new string(tmpArray));
+								if((WzObject)WzNode.GetChildNode(node, "name").Tag is WzStringProperty stringProperty)
+                                {
+                                    stringProperty.Value = "彩虹"+ stringProperty.Value;
+                                }
+							}
+						}
                         WzNode child = WzNode.GetChildNode(parent, node.Text);
                         if (child != null) // A Child already exist
                         {

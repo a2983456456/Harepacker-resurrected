@@ -252,7 +252,8 @@ namespace HaRepacker
             Text = name;
             ((WzObject)Tag).Name = name;
             if (Tag is WzImageProperty property)
-                property.ParentImage.Changed = true;
+                if(property.ParentImage != null)
+                    property.ParentImage.Changed = true;
 
             isWzObjectAddedManually = true;
             ForeColor = NewObjectForeColor;
